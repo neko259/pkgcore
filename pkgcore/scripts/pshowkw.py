@@ -5,35 +5,37 @@
 
 import argparse
 
-from pkgcore.util import commandline
-from pkgcore.util import parserestrict
+from snakeoil.lists import stable_unique
+
+from pkgcore.util import commandline, parserestrict
+from pkgcore.repository.util import RepositoryGroup
 
 
 class StoreTarget(argparse._AppendAction):
 
     def __call__(self, parser, namespace, values, option_string=None):
-        if isinstance(values, basestring):
-            values = [values]
-        for x in values:
-            argparse._AppendAction.__call__(
-                self, parser, namespace,
-                (x, parserestrict.parse_match(x)), option_string=option_string)
+        items = []
+        try:
+            for x in values:
+                items.append((x, parserestrict.parse_match(x)))
+        except parserestrict.ParseError as e:
+            raise argparse.ArgumentError(self, "atom is malformed: '%s'" % x)
+        setattr(namespace, self.dest, items)
 
 
 argparser = commandline.mk_argparser(description=__doc__)
 
 argparser.add_argument(
     "--no-filters", action='store_true', default=False,
-    help="With this option enabled, all license filtering, visibility filtering"
-         " (ACCEPT_KEYWORDS, package masking, etc) is turned off.")
+    help="disable all license filtering, visibility filtering "
+         "(ACCEPT_KEYWORDS, package masking, etc)")
 argparser.add_argument(
-    'targets', nargs='+', action=StoreTarget,
+    'targets', metavar='target',  nargs='+', action=StoreTarget,
     help="extended atom matching of packages")
-
 argparser.add_argument(
     '-r', '--repo',
     action=commandline.StoreRepoObject, priority=29,
-    help='repo to use (default from domain if omitted).')
+    help='repo(s) to use (default from domain if omitted)')
 
 
 @argparser.bind_delayed_default(30, 'repos')
@@ -42,7 +44,7 @@ def setup_repos(namespace, attr):
     if namespace.repo:
         repos = [namespace.repo]
     else:
-        repos = namespace.domain.repos_configured.itervalues()
+        repos = namespace.domain.source_repos
 
     setattr(namespace, attr, repos)
 
@@ -56,7 +58,7 @@ def main(options, out, err):
 
         if not pkgs:
             err.write("no matches for '%s'" % (token,))
-            return 1
+            continue
 
         for pkg in pkgs:
             out.write('%s: %s' % (pkg.cpvstr, ', '.join(pkg.keywords)))
