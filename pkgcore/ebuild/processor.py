@@ -703,7 +703,7 @@ class EbuildProcessor(object):
                 data.append("%s='%s'" % (key, val))
             else:
                 data.append("%s=$'%s'" % (key, val.replace("'", "\\'")))
-        return 'export %s' % (' '.join(data),)
+        return u'export %s' % (' '.join(data),)
 
     def send_env(self, env_dict, async=False, tmpdir=None):
         """
